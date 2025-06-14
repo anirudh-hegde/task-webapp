@@ -179,9 +179,11 @@ jobs:
           docker run --rm \
             -v $(pwd)/otel-temp:/instrumented \
             flask-todo-temp bash -c "\
-              pip install opentelemetry-distro opentelemetry-exporter-otlp opentelemetry-instrumentation-flask && \
-              mkdir -p /instrumented && \
+              pip install opentelemetry-distro opentelemetry-instrumentation-flask && \
               cp -r /app/* /instrumented && \
+              echo '' >> /instrumented/app/app.py && \
+              echo 'from opentelemetry.instrumentation.flask import FlaskInstrumentor' >> /instrumented/app/app.py && \
+              echo 'FlaskInstrumentor().instrument_app(app)' >> /instrumented/app/app.py && \
               echo 'Auto-instrumented backend code copied' \
             "
       - name: Upload instrumented backend code
