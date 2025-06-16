@@ -120,6 +120,7 @@
 #             --set env.REACT_APP_API_URL=${{ env.REACT_APP_API_URL }}
 
 
+
 name: Local CI/CD Pipeline
 
 on:
@@ -139,7 +140,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Backend Lint
+      # Backend Lint and setup...
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -152,10 +153,9 @@ jobs:
           pip install flake8
 
       - name: Lint backend
-        run: |
-          flake8 backend/Flask-ToDo-List/app
+        run: flake8 backend/Flask-ToDo-List/app
 
-      # Frontend Lint
+      # Frontend Lint and setup...
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -169,10 +169,9 @@ jobs:
         working-directory: frontend/Simple-Todos-In-React-JS
         run: npx eslint src
 
-      # === BACKEND Auto-Instrumentation ===
+      # === Backend Instrumentation ===
       - name: Build backend image (without push)
-        run: |
-          docker build -t flask-todo-temp backend/Flask-ToDo-List
+        run: docker build -t flask-todo-temp backend/Flask-ToDo-List
 
       - name: Auto-instrument backend container
         run: |
@@ -181,36 +180,138 @@ jobs:
             -v $(pwd)/otel-temp/backend:/instrumented \
             flask-todo-temp bash -c "\
               pip install opentelemetry-distro opentelemetry-instrumentation-flask && \
-              cp -r /app/. /instrumented/ && \
+              cp -r /app/* /instrumented && \
               echo '' >> /instrumented/app/app.py && \
               echo 'from opentelemetry.instrumentation.flask import FlaskInstrumentor' >> /instrumented/app/app.py && \
               echo 'FlaskInstrumentor().instrument_app(app)' >> /instrumented/app/app.py \
             "
 
-      - name: Prepare instrumented frontend code
+      # === Frontend Instrumentation ===
+      - name: Prepare frontend instrumented folder
+        run: mkdir -p otel-temp/frontend
+
+      - name: Copy frontend source to otel-temp/frontend
+        run: cp -r frontend/Simple-Todos-In-React-JS/* otel-temp/frontend/
+
+      - name: Inject OpenTelemetry in frontend (example)
         run: |
-          mkdir -p otel-temp/frontend
-          cp -r frontend/Simple-Todos-In-React-JS/* otel-temp/frontend/
-      
+          echo "import './otel-setup';" >> otel-temp/frontend/src/index.js
+          # Add your otel-setup.js injection here or ensure it exists in otel-temp/frontend/src/
+
+      # === Upload full instrumented repo ===
       - name: Upload instrumented code
         uses: actions/upload-artifact@v4
         with:
-          name: instrumented-whole-code
+          name: instrumented-full-repo
           path: otel-temp
 
+      # === Rebuild backend image from instrumented code ===
       - name: Rebuild instrumented backend image
-        run: |
-          docker build -t flask-todo-instrumented:latest otel-temp/backend
+        run: docker build -t flask-todo-instrumented:latest otel-temp/backend
 
+      # === Build frontend image from instrumented code ===
       - name: Build frontend image
-        run: |
-          docker build --build-arg REACT_APP_API_URL=${{ env.REACT_APP_API_URL }} -t react-todo-frontend:latest otel-temp/frontend
+        run: docker build --build-arg REACT_APP_API_URL=${{ env.REACT_APP_API_URL }} -t react-todo-frontend:latest otel-temp/frontend
 
+      # === Run containers locally ===
       - name: Run containers locally
         run: |
           docker network create todo-net || true
           docker run -d --name backend --network todo-net -p 5000:5000 flask-todo-instrumented:latest
           docker run -d --name frontend --network todo-net -p 3000:3000 react-todo-frontend:latest
+
+
+# name: Local CI/CD Pipeline
+
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
+
+# env:
+#   REACT_APP_API_URL: http://localhost:5000
+
+# jobs:
+#   lint-build-local:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+
+#       # Backend Lint
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.10'
+
+#       - name: Install backend dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install -r backend/Flask-ToDo-List/requirements.txt
+#           pip install flake8
+
+#       - name: Lint backend
+#         run: |
+#           flake8 backend/Flask-ToDo-List/app
+
+#       # Frontend Lint
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '18'
+
+#       - name: Install frontend dependencies
+#         working-directory: frontend/Simple-Todos-In-React-JS
+#         run: npm ci
+
+#       - name: Lint frontend
+#         working-directory: frontend/Simple-Todos-In-React-JS
+#         run: npx eslint src
+
+#       # === BACKEND Auto-Instrumentation ===
+#       - name: Build backend image (without push)
+#         run: |
+#           docker build -t flask-todo-temp backend/Flask-ToDo-List
+
+#       - name: Auto-instrument backend container
+#         run: |
+#           mkdir -p otel-temp/backend
+#           docker run --rm \
+#             -v $(pwd)/otel-temp/backend:/instrumented \
+#             flask-todo-temp bash -c "\
+#               pip install opentelemetry-distro opentelemetry-instrumentation-flask && \
+#               cp -r /app/. /instrumented/ && \
+#               echo '' >> /instrumented/app/app.py && \
+#               echo 'from opentelemetry.instrumentation.flask import FlaskInstrumentor' >> /instrumented/app/app.py && \
+#               echo 'FlaskInstrumentor().instrument_app(app)' >> /instrumented/app/app.py \
+#             "
+
+#       - name: Prepare instrumented frontend code
+#         run: |
+#           mkdir -p otel-temp/frontend
+#           cp -r frontend/Simple-Todos-In-React-JS/* otel-temp/frontend/
+      
+#       - name: Upload instrumented code
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: instrumented-whole-code
+#           path: otel-temp
+
+#       - name: Rebuild instrumented backend image
+#         run: |
+#           docker build -t flask-todo-instrumented:latest otel-temp/backend
+
+#       - name: Build frontend image
+#         run: |
+#           docker build --build-arg REACT_APP_API_URL=${{ env.REACT_APP_API_URL }} -t react-todo-frontend:latest otel-temp/frontend
+
+#       - name: Run containers locally
+#         run: |
+#           docker network create todo-net || true
+#           docker run -d --name backend --network todo-net -p 5000:5000 flask-todo-instrumented:latest
+#           docker run -d --name frontend --network todo-net -p 3000:3000 react-todo-frontend:latest
 
 # ------------------------------------------END----------------------------------------------
 
