@@ -106,6 +106,9 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin
           git checkout main
+          
+          rm -rf otel-temp/frontend/node_modules
+          
           git add otel-temp
           git commit -m "Add instrumented repo to otel-temp" || echo "No changes to commit"
           git push origin main
