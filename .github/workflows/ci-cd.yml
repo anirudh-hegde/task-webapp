@@ -199,27 +199,27 @@ jobs:
           docker build -t flask-todo-instrumented:latest otel-temp
 
       # === FRONTEND Auto-Instrumentation ===
-      - name: Inject OpenTelemetry for React (no exporter configured)
-        working-directory: frontend/Simple-Todos-In-React-JS
-        run: |
-          npm install --save @opentelemetry/api @opentelemetry/sdk-trace-web \
-            @opentelemetry/instrumentation-fetch \
-            @opentelemetry/instrumentation-document-load
+      # - name: Inject OpenTelemetry for React (no exporter configured)
+      #   working-directory: frontend/Simple-Todos-In-React-JS
+      #   run: |
+      #     npm install --save @opentelemetry/api @opentelemetry/sdk-trace-web \
+      #       @opentelemetry/instrumentation-fetch \
+      #       @opentelemetry/instrumentation-document-load
 
-          cat << 'EOF' >> src/otel-setup.js
-          import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
-          import { ConsoleSpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
-          import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch';
-          import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-document-load';
+          # cat << 'EOF' >> src/otel-setup.js
+          # import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+          # import { ConsoleSpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+          # import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch';
+          # import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-document-load';
 
-          const provider = new WebTracerProvider();
-          provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
-          provider.register();
-          new FetchInstrumentation().enable();
-          new DocumentLoadInstrumentation().enable();
-          EOF
+          # const provider = new WebTracerProvider();
+          # provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
+          # provider.register();
+          # new FetchInstrumentation().enable();
+          # new DocumentLoadInstrumentation().enable();
+          # EOF
 
-          echo "import './otel-setup';" >> src/index.js
+          # echo "import './otel-setup';" >> src/index.js
 
       - name: Build frontend image
         run: |
