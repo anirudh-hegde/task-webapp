@@ -188,15 +188,36 @@ jobs:
               echo 'Auto-instrumented backend code copied' \
             "
 
+      - name: Prepare instrumented frontend code
+        run: |
+          mkdir -p otel-temp/frontend
+          cp -r frontend/Simple-Todos-In-React-JS/* otel-temp/frontend/
+      
       - name: Upload instrumented code
         uses: actions/upload-artifact@v4
         with:
-          name: instrumented
+          name: instrumented-whole-code
           path: otel-temp
 
       - name: Rebuild instrumented backend image
         run: |
-          docker build -t flask-todo-instrumented:latest otel-temp
+          docker build -t flask-todo-instrumented:latest otel-temp/backend
+
+      - name: Build frontend image
+        run: |
+          docker build --build-arg REACT_APP_API_URL=${{ env.REACT_APP_API_URL }} -t react-todo-frontend:latest otel-temp/frontend
+
+      - name: Run containers locally
+        run: |
+          docker network create todo-net || true
+          docker run -d --name backend --network todo-net -p 5000:5000 flask-todo-instrumented:latest
+          docker run -d --name frontend --network todo-net -p 3000:3000 react-todo-frontend:latest
+
+# ------------------------------------------END----------------------------------------------
+
+      # - name: Rebuild instrumented backend image
+      #   run: |
+      #     docker build -t flask-todo-instrumented:latest otel-temp
 
       # === FRONTEND Auto-Instrumentation ===
       # - name: Inject OpenTelemetry for React (no exporter configured)
@@ -221,15 +242,15 @@ jobs:
 
           # echo "import './otel-setup';" >> src/index.js
 
-      - name: Build frontend image
-        run: |
-          docker build --build-arg REACT_APP_API_URL=${{ env.REACT_APP_API_URL }} -t react-todo-frontend:latest frontend/Simple-Todos-In-React-JS
+      # - name: Build frontend image
+      #   run: |
+      #     docker build --build-arg REACT_APP_API_URL=${{ env.REACT_APP_API_URL }} -t react-todo-frontend:latest frontend/Simple-Todos-In-React-JS
 
-      - name: Run containers locally
-        run: |
-          docker network create todo-net || true
-          docker run -d --name backend --network todo-net -p 5000:5000 flask-todo-instrumented:latest
-          docker run -d --name frontend --network todo-net -p 3000:3000 react-todo-frontend:latest
+      # - name: Run containers locally
+      #   run: |
+      #     docker network create todo-net || true
+      #     docker run -d --name backend --network todo-net -p 5000:5000 flask-todo-instrumented:latest
+      #     docker run -d --name frontend --network todo-net -p 3000:3000 react-todo-frontend:latest
 
 # name: Local CI/CD Pipeline
 
