@@ -1,126 +1,3 @@
-# name: CI/CD Pipeline
-
-# on:
-#   push:
-#     branches: [main]
-#   pull_request:
-#     branches: [main]
-
-# env:
-#   ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-#   ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-#   ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-#   AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
-#   AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
-#   TENANT_ID: ${{ secrets.TENANT_ID }}
-#   CLIENT_ID: ${{ secrets.CLIENT_ID }}
-#   CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-#   REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
-#   AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
-
-# jobs:
-#   lint-build-deploy:
-#     runs-on: ubuntu-latest
-
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v4
-
-#       # Backend Lint
-#       - name: Set up Python
-#         uses: actions/setup-python@v5
-#         with:
-#           python-version: '3.10'
-
-#       - name: Install backend dependencies
-#         run: |
-#           python -m pip install --upgrade pip
-#           pip install -r backend/Flask-ToDo-List/requirements.txt
-#           pip install flake8
-
-#       - name: Lint backend
-#         run: |
-#           flake8 backend/Flask-ToDo-List/app
-
-#       # Frontend Lint
-#       - name: Set up Node.js
-#         uses: actions/setup-node@v4
-#         with:
-#           node-version: '18'
-
-#       - name: Install frontend dependencies
-#         working-directory: frontend/Simple-Todos-In-React-JS
-#         run: npm ci
-
-#       - name: Lint frontend
-#         working-directory: frontend/Simple-Todos-In-React-JS
-#         run: npx eslint src
-
-#       # Build and Push Backend Docker Image
-#       - name: Log in to Azure Container Registry
-#         uses: azure/docker-login@v1
-#         with:
-#           login-server: ${{ env.ACR_LOGIN_SERVER }}
-#           username: ${{ env.ACR_USERNAME }}
-#           password: ${{ env.ACR_PASSWORD }}
-
-#       - name: Build backend image (without push)
-#         run: |
-#           docker build -t flask-todo-temp backend/Flask-ToDo-List
-
-#       - name: Auto-instrument backend container
-#         run: |
-#           mkdir -p otel-temp
-#           docker run --rm \
-#             -v $(pwd)/otel-temp:/instrumented \
-#             flask-todo-temp bash -c "\
-#               pip install opentelemetry-distro opentelemetry-exporter-otlp opentelemetry-instrumentation-flask && \
-#               mkdir -p /instrumented && \
-#               cp -r /app/* /instrumented && \
-#               echo 'Auto-instrumented backend code copied' \
-#             "
-
-#       - name: Rebuild and tag instrumented backend image
-#         run: |
-#           docker build -t ${{ env.ACR_LOGIN_SERVER }}/flask-todo-backend:latest otel-temp
-#           docker push ${{ env.ACR_LOGIN_SERVER }}/flask-todo-backend:latest
-
-#       # Build and Push Frontend Docker Image
-#       - name: Build and push frontend image
-#         run: |
-#           docker build --build-arg REACT_APP_API_URL=${{ env.REACT_APP_API_URL }} -t ${{ env.ACR_LOGIN_SERVER }}/react-todo-frontend:latest frontend/Simple-Todos-In-React-JS
-#           docker push ${{ env.ACR_LOGIN_SERVER }}/react-todo-frontend:latest
-
-#       # Azure Login
-#       - name: Azure Login
-#         uses: azure/login@v2
-#         with:
-#           creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-#       # Set AKS context
-#       - name: Set AKS context
-#         uses: azure/aks-set-context@v3
-#         with:
-#           resource-group: ${{ env.AKS_RESOURCE_GROUP }}
-#           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
-
-#       # Deploy Backend with Helm
-#       - name: Deploy backend with Helm
-#         run: |
-#           helm upgrade --install backend ./helm/backend \
-#             --set image.repository=${{ env.ACR_LOGIN_SERVER }}/flask-todo-backend \
-#             --set image.tag=latest
-
-#       # Deploy Frontend with Helm
-#       - name: Deploy frontend with Helm
-#         run: |
-#           helm upgrade --install frontend ./helm/frontend \
-#             --set image.repository=${{ env.ACR_LOGIN_SERVER }}/react-todo-frontend \
-#             --set image.tag=latest \
-#             --set env.REACT_APP_API_URL=${{ env.REACT_APP_API_URL }}
-
-
-
 name: Local CI/CD Pipeline
 
 on:
@@ -129,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+  
 env:
   REACT_APP_API_URL: http://localhost:5000
 
@@ -219,7 +99,17 @@ jobs:
           docker network create todo-net || true
           docker run -d --name backend --network todo-net -p 5000:5000 flask-todo-instrumented:latest
           docker run -d --name frontend --network todo-net -p 3000:3000 react-todo-frontend:latest
-
+          
+      - name: Push otel-temp to GitHub repository root
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout main
+          cp -r otel-temp ./otel-temp
+          git add otel-temp
+          git commit -m "Add instrumented repo to otel-temp" || echo "No changes to commit"
+          git push origin main
 
 # name: Local CI/CD Pipeline
 
