@@ -188,10 +188,10 @@ jobs:
               echo 'Auto-instrumented backend code copied' \
             "
 
-      - name: Upload instrumented backend code
+      - name: Upload instrumented code
         uses: actions/upload-artifact@v4
         with:
-          name: instrumented-backend
+          name: instrumented
           path: otel-temp
 
       - name: Rebuild instrumented backend image
