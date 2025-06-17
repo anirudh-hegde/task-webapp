@@ -24,7 +24,8 @@ env:
 
 jobs:
   test-and-run:
-    runs-on: self-hosted # Using your self-hosted runner
+    runs-on: ubuntu-latest
+    # Using your self-hosted runner
 
     steps:
       - name: Checkout repository
