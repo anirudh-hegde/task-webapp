@@ -27,7 +27,7 @@
       
 #       # Environment variable for the React App to find the backend
 #       # This works because both servers will run on localhost on the self-hosted runner
-      
+       
 
 #     steps:
 #       - name: Checkout repository
