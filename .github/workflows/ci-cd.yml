@@ -12,7 +12,7 @@
 # env:
 #   REACT_APP_API_URL: http://localhost:5000
 #   OTEL_EXPORTER_OTLP_ENDPOINT: https://ingest.in.signoz.cloud:4317
-#   OTEL_EXPORTER_OTLP_HEADERS: api-key=your_signoz_api_key
+#   OTEL_EXPORTER_OTLP_HEADERS: api-key=e9bfcba0-a5a1-4d45-b2d5-38d332625ac8
 #   OTEL_SERVICE_NAME: flask-todo-instrumented
 
 # jobs:
