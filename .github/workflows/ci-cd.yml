@@ -68,7 +68,7 @@ jobs:
       # Run Services in the Background
       # =========================================================
       - name: Run Backend Service in Background
-        run: ./backend/Flask-ToDo-List/backendrun.sh &
+        run: ./backend/Flask-ToDo-List/backend-run.sh &
 
       - name: Run Frontend Service in Background
         run: ./frontend/Simple-Todos-In-React-JS/frontend-run.sh &
