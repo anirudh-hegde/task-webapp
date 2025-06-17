@@ -1,5 +1,9 @@
 # Full Stack To-Do Application
 
+git clone https://github.com/SigNoz/signoz.git
+cd signoz/deploy/docker
+docker compose up -d
+
 This repository contains a full stack To-Do application, featuring:
 - **Backend:** Flask-based REST API for managing to-do items.
 - **Frontend:** React.js single-page application for user interaction.
