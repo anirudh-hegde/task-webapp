@@ -1,98 +1,169 @@
-name: CI - Test and Run Services
+# name: CI - Test and Run Services
+
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
+
+# permissions:
+#   contents: read
+  
+
+# jobs:
+#   test-and-run:
+#     runs-on: self-hosted
+#     # Using your self-hosted runner
+#     env:
+#       PUBLIC_IP: 54.123.45.67 
+#       FRONTEND_APP_API_URL: http://43.204.145.165:3000
+#       BACKEND_APP_API_URL: http://43.204.145.165:5000
+#   # Environment variables for OpenTelemetry/SigNoz Cloud
+#   # These will be available to all steps in the job.
+#       OTEL_RESOURCE_ATTRIBUTES: service.name=flask-app-backend-ci
+#       OTEL_EXPORTER_OTLP_ENDPOINT: https://ingest.in.signoz.cloud:443
+#       OTEL_EXPORTER_OTLP_HEADERS: "signoz-access-token=e9bfcba0-a5a1-4d45-b2d5-38d332625ac8"
+#       OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: true
+      
+#       # Environment variable for the React App to find the backend
+#       # This works because both servers will run on localhost on the self-hosted runner
+      
+
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+        
+#       # =========================================================
+#       # Backend Setup
+#       # =========================================================
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.10' # Ensure this version is installed on your runner
+
+#       - name: Install backend dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install -r backend/Flask-ToDo-List/requirements.txt
+#           opentelemetry-bootstrap --action=install # For auto-instrumentation
+
+#       # =========================================================
+#       # Frontend Setup
+#       # =========================================================
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '18' # Ensure Node v18+ is available on your runner
+
+#       - name: Install frontend dependencies
+#         working-directory: frontend/Simple-Todos-In-React-JS
+#         run: npm install
+
+#       - name: Make run scripts executable
+#         run: |
+#           chmod +x backend/Flask-ToDo-List/backend-run.sh
+#           chmod +x frontend/Simple-Todos-In-React-JS/frontend-run.sh
+#       # =========================================================
+#       # Run Services in the Background
+#       # =========================================================
+#       - name: Run Backend Service in Background
+#         working-directory: backend/Flask-ToDo-List
+#         run: ./backend-run.sh &
+
+#       - name: Run Frontend Service in Background
+#         working-directory: frontend/Simple-Todos-In-React-JS
+#         run: ./frontend-run.sh &
+#       # - name: Run Backend in Background
+#       #   working-directory: backend/Flask-ToDo-List
+#       #   # The '&' runs the command in the background
+#       #   run: opentelemetry-instrument python3 app.py &
+
+#       # - name: Run Frontend in Background
+#       #   working-directory: frontend/Simple-Todos-In-React-JS
+#       #   # The '&' runs the command in the background
+#       #   run: npm start &
+
+#       # =========================================================
+#       # Health Check / Integration Test
+#       # =========================================================
+#       - name: Wait for services to start
+#         # Give the servers time to initialize before testing them
+#         run: sleep 40
+
+#       - name: Test Backend Endpoint
+#         # --fail causes the step to fail if the HTTP status is an error (e.g., 404, 500)
+#         run: curl --fail http://localhost:5000/api/todos
+
+#       - name: Test Frontend Endpoint
+#         run: curl --fail http://localhost:3000
+
+name: CD - Deploy Full Stack App to EC2
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-
-permissions:
-  contents: read
-  
 
 jobs:
-  test-and-run:
-    runs-on: self-hosted
-    # Using your self-hosted runner
-    env:
-      PUBLIC_IP: 54.123.45.67 
-      FRONTEND_APP_API_URL: http://43.204.145.165:3000
-      BACKEND_APP_API_URL: http://43.204.145.165:5000
-  # Environment variables for OpenTelemetry/SigNoz Cloud
-  # These will be available to all steps in the job.
-      OTEL_RESOURCE_ATTRIBUTES: service.name=flask-app-backend-ci
-      OTEL_EXPORTER_OTLP_ENDPOINT: https://ingest.in.signoz.cloud:443
-      OTEL_EXPORTER_OTLP_HEADERS: "signoz-access-token=e9bfcba0-a5a1-4d45-b2d5-38d332625ac8"
-      OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: true
-      
-      # Environment variable for the React App to find the backend
-      # This works because both servers will run on localhost on the self-hosted runner
-      
+  deploy:
+    runs-on: ubuntu-latest # We use a standard GitHub runner to deploy FROM
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
-      # =========================================================
-      # Backend Setup
-      # =========================================================
-      - name: Set up Python
-        uses: actions/setup-python@v5
+
+      - name: Deploy to EC2 instance via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          python-version: '3.10' # Ensure this version is installed on your runner
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # --- General Setup on EC2 ---
+            echo "Navigating to project directory and pulling latest code..."
+            # Change 'your-repo-name' to the actual folder name on your EC2 instance
+            cd ~/task-webapp
+            git pull origin main
+            
+            # --- Backend Deployment (Flask + OpenTelemetry) ---
+            echo "Deploying backend..."
+            cd backend/Flask-ToDo-List
 
-      - name: Install backend dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r backend/Flask-ToDo-List/requirements.txt
-          opentelemetry-bootstrap --action=install # For auto-instrumentation
+            # Install dependencies
+            pip3 install -r requirements.txt
+            pip3 install opentelemetry-distro # Ensure instrumentation tools are on the server
+            
+            # Use pm2 to stop the old process and start the new one
+            # The '|| true' prevents the workflow from failing if the app isn't running yet
+            pm2 stop flask-app || true
 
-      # =========================================================
-      # Frontend Setup
-      # =========================================================
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18' # Ensure Node v18+ is available on your runner
+            # Start the app with pm2, passing OpenTelemetry env vars directly
+            # This is cleaner than managing a .env file on the server
+            OTEL_RESOURCE_ATTRIBUTES="service.name=flask-app-backend" \
+            OTEL_EXPORTER_OTLP_ENDPOINT="https://ingest.in.signoz.cloud:443" \
+            OTEL_EXPORTER_OTLP_HEADERS="signoz-access-token=${{ secrets.SIGNOZ_TOKEN }}" \
+            OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED="true" \
+            pm2 start "opentelemetry-instrument python3 app.py --host=0.0.0.0 --port=5000" --name "flask-app"
 
-      - name: Install frontend dependencies
-        working-directory: frontend/Simple-Todos-In-React-JS
-        run: npm install
+            # --- Frontend Deployment (React) ---
+            echo "Deploying frontend..."
+            cd ../../frontend/Simple-Todos-In-React-JS
+            
+            # Install dependencies
+            npm install
+            
+            # Create the .env file with the public IP of the backend for the build process
+            echo "REACT_APP_API_URL=http://${{ secrets.EC2_HOST }}:5000" > .env
+            
+            # Build the production-ready static files
+            npm run build
+            
+            # Use pm2 to serve the static build folder
+            pm2 stop react-app || true
+            pm2 start "npx serve -s build -l 3000" --name "react-app"
 
-      - name: Make run scripts executable
-        run: |
-          chmod +x backend/Flask-ToDo-List/backend-run.sh
-          chmod +x frontend/Simple-Todos-In-React-JS/frontend-run.sh
-      # =========================================================
-      # Run Services in the Background
-      # =========================================================
-      - name: Run Backend Service in Background
-        working-directory: backend/Flask-ToDo-List
-        run: ./backend-run.sh &
-
-      - name: Run Frontend Service in Background
-        working-directory: frontend/Simple-Todos-In-React-JS
-        run: ./frontend-run.sh &
-      # - name: Run Backend in Background
-      #   working-directory: backend/Flask-ToDo-List
-      #   # The '&' runs the command in the background
-      #   run: opentelemetry-instrument python3 app.py &
-
-      # - name: Run Frontend in Background
-      #   working-directory: frontend/Simple-Todos-In-React-JS
-      #   # The '&' runs the command in the background
-      #   run: npm start &
-
-      # =========================================================
-      # Health Check / Integration Test
-      # =========================================================
-      - name: Wait for services to start
-        # Give the servers time to initialize before testing them
-        run: sleep 40
-
-      - name: Test Backend Endpoint
-        # --fail causes the step to fail if the HTTP status is an error (e.g., 404, 500)
-        run: curl --fail http://localhost:5000/api/todos
-
-      - name: Test Frontend Endpoint
-        run: curl --fail http://localhost:3000
+            # --- Finalize ---
+            echo "Saving pm2 process list to restart on reboot..."
+            pm2 save
+            
+            echo "Deployment successful! Current processes:"
+            pm2 list
