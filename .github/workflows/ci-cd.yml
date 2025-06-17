@@ -8,9 +8,6 @@ on:
 
 permissions:
   contents: read
-
-env:
-  PUBLIC_IP: 172.31.7.88
   
 
 jobs:
@@ -18,8 +15,9 @@ jobs:
     runs-on: self-hosted
     # Using your self-hosted runner
     env:
-      FRONTEND_APP_API_URL: http://${{ env.PUBLIC_IP }}:3000
-      BACKEND_APP_API_URL: http://${{ env.PUBLIC_IP }}:5000
+      # PUBLIC_IP: 172.31.7.88
+      FRONTEND_APP_API_URL: http://172.31.7.88:3000
+      BACKEND_APP_API_URL: http://172.31.7.88:5000
   # Environment variables for OpenTelemetry/SigNoz Cloud
   # These will be available to all steps in the job.
       OTEL_RESOURCE_ATTRIBUTES: service.name=flask-app-backend-ci
