@@ -97,7 +97,7 @@
 #       - name: Test Frontend Endpoint
 #         run: curl --fail http://localhost:3000
 
-name: CD-deploy - new
+name: CD-deploy - anirudh
 
 on:
   workflow_dispatch:
