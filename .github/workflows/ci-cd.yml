@@ -55,7 +55,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend/Simple-Todos-In-React-JS
-        run: npm ci
+        run: npm install
 
       # =========================================================
       # Run Services in the Background
