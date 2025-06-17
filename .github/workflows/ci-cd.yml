@@ -108,7 +108,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest # We use a standard GitHub runner to deploy FROM
-
+  
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
