@@ -22,4 +22,4 @@ export OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
 
 pip install -r requirements.txt
 # Start backend in background
-opentelemetry-instrument python3 app.py
+exec opentelemetry-instrument python3 app.py --host=0.0.0.0 --port=5000
