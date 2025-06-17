@@ -1,117 +1,117 @@
-# name: Local CI/CD Pipeline
+name: Local CI/CD Pipeline
 
-# on:
-#   push:
-#     branches: [main]
-#   pull_request:
-#     branches: [main]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
-# permissions:
-#   contents: write
+permissions:
+  contents: write
   
-# env:
-#   REACT_APP_API_URL: http://localhost:5000
-#   OTEL_EXPORTER_OTLP_ENDPOINT: https://ingest.in.signoz.cloud:4317
-#   OTEL_EXPORTER_OTLP_HEADERS: api-key=e9bfcba0-a5a1-4d45-b2d5-38d332625ac8
-#   OTEL_SERVICE_NAME: flask-todo-instrumented
+env:
+  REACT_APP_API_URL: http://localhost:5000
+  OTEL_EXPORTER_OTLP_ENDPOINT: https://ingest.in.signoz.cloud:4317
+  OTEL_EXPORTER_OTLP_HEADERS: api-key=e9bfcba0-a5a1-4d45-b2d5-38d332625ac8
+  OTEL_SERVICE_NAME: flask-todo-instrumented
 
-# jobs:
-#   lint-build-local:
-#     runs-on: ubuntu-latest
+jobs:
+  lint-build-local:
+    runs-on: ubuntu-latest
 
-#     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-#       # Backend Lint and setup
-#       - name: Set up Python
-#         uses: actions/setup-python@v5
-#         with:
-#           python-version: '3.10'
+      # Backend Lint and setup
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-#       - name: Install backend dependencies
-#         run: |
-#           python -m pip install --upgrade pip
-#           pip install -r backend/Flask-ToDo-List/requirements.txt
-#           pip install flake8
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/Flask-ToDo-List/requirements.txt
+          pip install flake8
 
-#       - name: Lint backend
-#         run: flake8 backend/Flask-ToDo-List/app
+      - name: Lint backend
+        run: flake8 backend/Flask-ToDo-List/app
 
-#       # Frontend Lint and setup
-#       - name: Set up Node.js
-#         uses: actions/setup-node@v4
-#         with:
-#           node-version: '18'
+      # Frontend Lint and setup
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
 
-#       - name: Install frontend dependencies
-#         working-directory: frontend/Simple-Todos-In-React-JS
-#         run: npm ci
+      - name: Install frontend dependencies
+        working-directory: frontend/Simple-Todos-In-React-JS
+        run: npm ci
 
-#       - name: Lint frontend
-#         working-directory: frontend/Simple-Todos-In-React-JS
-#         run: npx eslint src
+      - name: Lint frontend
+        working-directory: frontend/Simple-Todos-In-React-JS
+        run: npx eslint src
 
-#       # === Backend Instrumentation ===
-#       - name: Build backend image (without push)
-#         run: docker build -t flask-todo-temp backend/Flask-ToDo-List
+      # === Backend Instrumentation ===
+      - name: Build backend image (without push)
+        run: docker build -t flask-todo-temp backend/Flask-ToDo-List
 
-#       - name: Auto-instrument backend container
-#         run: |
-#           mkdir -p otel-temp/backend
-#           docker run --rm \
-#             -v $(pwd)/otel-temp/backend:/instrumented \
-#             flask-todo-temp bash -c "\
-#               pip install opentelemetry-distro opentelemetry-instrumentation-flask && \
-#               cp -r /app/* /instrumented && \
-#               echo '' >> /instrumented/app/app.py && \
-#               echo 'from opentelemetry.instrumentation.flask import FlaskInstrumentor' >> /instrumented/app/app.py && \
-#               echo 'FlaskInstrumentor().instrument_app(app)' >> /instrumented/app/app.py \
-#             "
+      - name: Auto-instrument backend container
+        run: |
+          mkdir -p otel-temp/backend
+          docker run --rm \
+            -v $(pwd)/otel-temp/backend:/instrumented \
+            flask-todo-temp bash -c "\
+              pip install opentelemetry-distro opentelemetry-instrumentation-flask && \
+              cp -r /app/* /instrumented && \
+              echo '' >> /instrumented/app/app.py && \
+              echo 'from opentelemetry.instrumentation.flask import FlaskInstrumentor' >> /instrumented/app/app.py && \
+              echo 'FlaskInstrumentor().instrument_app(app)' >> /instrumented/app/app.py \
+            "
 
-#       #Frontend Instrumentation
-#       - name: Prepare frontend instrumented folder
-#         run: mkdir -p otel-temp/frontend
+      #Frontend Instrumentation
+      - name: Prepare frontend instrumented folder
+        run: mkdir -p otel-temp/frontend
 
-#       - name: Copy frontend source to otel-temp/frontend
-#         run: cp -r frontend/Simple-Todos-In-React-JS/* otel-temp/frontend/
+      - name: Copy frontend source to otel-temp/frontend
+        run: cp -r frontend/Simple-Todos-In-React-JS/* otel-temp/frontend/
 
-#       - name: Inject OpenTelemetry in frontend (example)
-#         run: |
-#           echo "import './otel-setup';" >> otel-temp/frontend/src/index.js
-#           # Add your otel-setup.js injection here or ensure it exists in otel-temp/frontend/src/
+      - name: Inject OpenTelemetry in frontend (example)
+        run: |
+          echo "import './otel-setup';" >> otel-temp/frontend/src/index.js
+          # Add your otel-setup.js injection here or ensure it exists in otel-temp/frontend/src/
 
-#       #Upload full instrumented repo 
-#       - name: Upload instrumented code
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: instrumented-full-repo
-#           path: otel-temp
+      #Upload full instrumented repo 
+      - name: Upload instrumented code
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-full-repo
+          path: otel-temp
 
-#       #Rebuild backend image from instrumented code
-#       - name: Rebuild instrumented backend image
-#         run: docker build -t flask-todo-instrumented:latest otel-temp/backend
+      #Rebuild backend image from instrumented code
+      - name: Rebuild instrumented backend image
+        run: docker build -t flask-todo-instrumented:latest otel-temp/backend
 
-#       #Build frontend image from instrumented code
-#       - name: Build frontend image
-#         run: docker build --build-arg REACT_APP_API_URL=${{ env.REACT_APP_API_URL }} -t react-todo-frontend:latest otel-temp/frontend
+      #Build frontend image from instrumented code
+      - name: Build frontend image
+        run: docker build --build-arg REACT_APP_API_URL=${{ env.REACT_APP_API_URL }} -t react-todo-frontend:latest otel-temp/frontend
 
-#       #Run containers locally
-#       - name: Run containers locally
-#         run: |
-#           docker network create todo-net || true
-#           docker run -d --name backend --network todo-net -p 5000:5000 flask-todo-instrumented:latest
-#           docker run -d --name frontend --network todo-net -p 3000:3000 react-todo-frontend:latest
+      #Run containers locally
+      - name: Run containers locally
+        run: |
+          docker network create todo-net || true
+          docker run -d --name backend --network todo-net -p 5000:5000 flask-todo-instrumented:latest
+          docker run -d --name frontend --network todo-net -p 3000:3000 react-todo-frontend:latest
           
-#       - name: Push otel-temp to GitHub repository root
-#         run: |
-#           git config --global user.name "github-actions[bot]"
-#           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-#           git fetch origin
-#           git checkout main
+      - name: Push otel-temp to GitHub repository root
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout main
           
-#           rm -rf otel-temp/frontend/node_modules
+          rm -rf otel-temp/frontend/node_modules
           
-#           git add otel-temp
-#           git commit -m "Add instrumented repo to otel-temp" || echo "No changes to commit"
-#           git push origin main
+          git add otel-temp
+          git commit -m "Add instrumented repo to otel-temp" || echo "No changes to commit"
+          git push origin main
