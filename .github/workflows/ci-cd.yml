@@ -8,12 +8,14 @@ on:
 
 permissions:
   contents: write
-  
+
 env:
   REACT_APP_API_URL: http://localhost:5000
-  OTEL_EXPORTER_OTLP_ENDPOINT: https://ingest.in.signoz.cloud:4317
-  OTEL_EXPORTER_OTLP_HEADERS: api-key=e9bfcba0-a5a1-4d45-b2d5-38d332625ac8
-  OTEL_SERVICE_NAME: flask-todo-instrumented
+  OTEL_RESOURCE_ATTRIBUTES: service.name=flask-app-backend
+  OTEL_EXPORTER_OTLP_ENDPOINT: https://ingest.in.signoz.cloud:443
+  OTEL_EXPORTER_OTLP_HEADERS: signoz-access-token=e9bfcba0-a5a1-4d45-b2d5-38d332625ac8
+  OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: true 
+  # OTEL_SERVICE_NAME: flask-todo-instrumented
 
 jobs:
   lint-build-local:
@@ -27,7 +29,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10.13'
+          python-version: '3.10'
 
       - name: Install backend dependencies
         run: |
