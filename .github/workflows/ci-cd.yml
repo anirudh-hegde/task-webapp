@@ -17,7 +17,7 @@ env:
 
 jobs:
   lint-build-local:
-    runs-on: ubuntu-latest
+    runs-on: Self-hosted
 
     steps:
       - name: Checkout repository
