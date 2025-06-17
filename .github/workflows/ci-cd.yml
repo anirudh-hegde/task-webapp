@@ -62,16 +62,16 @@ jobs:
 
       - name: Make run scripts executable
         run: |
-          chmod +x backend/Flask-ToDo-List/run.sh
-          chmod +x frontend/Simple-Todos-In-React-JS/run.sh
+          chmod +x backend/Flask-ToDo-List/backend-run.sh
+          chmod +x frontend/Simple-Todos-In-React-JS/frontend-run.sh
       # =========================================================
       # Run Services in the Background
       # =========================================================
       - name: Run Backend Service in Background
-        run: ./backend/Flask-ToDo-List/run.sh &
+        run: ./backend/Flask-ToDo-List/backendrun.sh &
 
       - name: Run Frontend Service in Background
-        run: ./frontend/Simple-Todos-In-React-JS/run.sh &
+        run: ./frontend/Simple-Todos-In-React-JS/frontend-run.sh &
       # - name: Run Backend in Background
       #   working-directory: backend/Flask-ToDo-List
       #   # The '&' runs the command in the background
