@@ -20,7 +20,8 @@ env:
   
   # Environment variable for the React App to find the backend
   # This works because both servers will run on localhost on the self-hosted runner
-  REACT_APP_API_URL: http://localhost:5000
+  FRONTEND_APP_API_URL: http://localhost:3000
+  BACKEND_APP_API_URL: http://localhost:5000
 
 jobs:
   test-and-run:
