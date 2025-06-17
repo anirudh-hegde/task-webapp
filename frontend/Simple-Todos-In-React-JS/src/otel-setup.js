@@ -14,14 +14,14 @@
 
 // otel-setup.js (or .ts)
 
-import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
-import { ConsoleSpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';   // ← missing import :contentReference[oaicite:0]{index=0}
-import { registerInstrumentations } from '@opentelemetry/instrumentation';
-import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch';
-import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-document-load';
-import { Resource } from '@opentelemetry/resources';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { WebTracerProvider } from '@opentelemetry/sdk-trace-web'
+import { ConsoleSpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'   // ← missing import :contentReference[oaicite:0]{index=0}
+import { registerInstrumentations } from '@opentelemetry/instrumentation'
+import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch'
+import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-document-load'
+import { Resource } from '@opentelemetry/resources'
+import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 
 // 1️⃣ Provider with a service name that shows up in SigNoz
 const provider = new WebTracerProvider({
