@@ -97,73 +97,75 @@
 #       - name: Test Frontend Endpoint
 #         run: curl --fail http://localhost:3000
 
-name: CD - Deploy Full Stack App to EC2
+name: CD-deploy-2 - Deploy Full Stack App to EC2
 
 on:
   push:
-    branches: [main]
+    branches: [ fix/deploy-2 ]
+  workflow_dispatch:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest # We use a standard GitHub runner to deploy FROM
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy to EC2 instance via SSH
+      - name: Bootstrap & Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # --- General Setup on EC2 ---
-            echo "Navigating to project directory and pulling latest code..."
-            # Change 'your-repo-name' to the actual folder name on your EC2 instance
+            set -e
+
+            echo "=== 1) Ensure prerequisites on EC2 ==="
+            command -v python3 >/dev/null || sudo yum install -y python3
+            command -v pip3   >/dev/null || sudo yum install -y python3-pip
+            command -v node   >/dev/null || \
+              curl -sL https://rpm.nodesource.com/setup_18.x | sudo bash - && \
+              sudo yum install -y nodejs
+            command -v pm2    >/dev/null || sudo npm install -g pm2
+            command -v opentelemetry-bootstrap >/dev/null || \
+              pip3 install opentelemetry-distro && \
+              opentelemetry-bootstrap --action=install
+            command -v serve  >/dev/null || sudo npm install -g serve
+
+            echo "=== 2) Pull latest code ==="
             cd ~/task-webapp
-            git pull origin main
-            
-            # --- Backend Deployment (Flask + OpenTelemetry) ---
-            echo "Deploying backend..."
+            if [ ! -d .git ]; then
+              git clone https://github.com/${{ github.repository }} .
+            else
+              git fetch --all
+              git reset --hard origin/main
+            fi
+
+            echo "=== 3) Deploy Backend (Flask + OTel) ==="
             cd backend/Flask-ToDo-List
-
-            # Install dependencies
+            pip3 install --upgrade pip
             pip3 install -r requirements.txt
-            pip3 install opentelemetry-distro # Ensure instrumentation tools are on the server
-            
-            # Use pm2 to stop the old process and start the new one
-            # The '|| true' prevents the workflow from failing if the app isn't running yet
-            pm2 stop flask-app || true
 
-            # Start the app with pm2, passing OpenTelemetry env vars directly
-            # This is cleaner than managing a .env file on the server
+            pm2 stop flask-app || true
             OTEL_RESOURCE_ATTRIBUTES="service.name=flask-app-backend" \
             OTEL_EXPORTER_OTLP_ENDPOINT="https://ingest.in.signoz.cloud:443" \
             OTEL_EXPORTER_OTLP_HEADERS="signoz-access-token=${{ secrets.SIGNOZ_TOKEN }}" \
             OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED="true" \
-            pm2 start "opentelemetry-instrument python3 app.py --host=0.0.0.0 --port=5000" --name "flask-app"
+              pm2 start opentelemetry-instrument -- \
+                python3 app.py --host=0.0.0.0 --port=5000 \
+                --name flask-app
 
-            # --- Frontend Deployment (React) ---
-            echo "Deploying frontend..."
+            echo "=== 4) Deploy Frontend (React) ==="
             cd ../../frontend/Simple-Todos-In-React-JS
-            
-            # Install dependencies
-            npm install
-            
-            # Create the .env file with the public IP of the backend for the build process
+            npm ci
             echo "REACT_APP_API_URL=http://${{ secrets.EC2_HOST }}:5000" > .env
-            
-            # Build the production-ready static files
             npm run build
-            
-            # Use pm2 to serve the static build folder
-            pm2 stop react-app || true
-            pm2 start "npx serve -s build -l 3000" --name "react-app"
 
-            # --- Finalize ---
-            echo "Saving pm2 process list to restart on reboot..."
+            pm2 stop react-app || true
+            pm2 start serve -- -s build -l 3000 --name react-app
+
+            echo "=== 5) Persist & Report ==="
             pm2 save
-            
-            echo "Deployment successful! Current processes:"
             pm2 list
+
