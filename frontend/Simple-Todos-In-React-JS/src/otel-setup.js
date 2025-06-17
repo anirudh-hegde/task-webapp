@@ -1,50 +1,50 @@
-// import {WebTracerProvider} from '@opentelemetry/sdk-trace-web'
-// import {
-//   ConsoleSpanExporter,
-//   SimpleSpanProcessor,
-// } from '@opentelemetry/sdk-trace-base'
-// import {FetchInstrumentation} from '@opentelemetry/instrumentation-fetch'
-// import {DocumentLoadInstrumentation} from '@opentelemetry/instrumentation-document-load'
+import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+import { getWebAutoInstrumentations } from '@opentelemetry/auto-instrumentations-web';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { ZoneContextManager } from '@opentelemetry/context-zone';
+import { registerInstrumentations } from '@opentelemetry/instrumentation';
+import { Resource } from '@opentelemetry/resources';
 
-// const provider = new WebTracerProvider()
-// provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()))
-// provider.register()
-// new FetchInstrumentation().enable()
-// new DocumentLoadInstrumentation().enable()
-
-// otel-setup.js (or .ts)
-
-import { WebTracerProvider } from '@opentelemetry/sdk-trace-web'
-import { ConsoleSpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'   // ← missing import :contentReference[oaicite:0]{index=0}
-import { registerInstrumentations } from '@opentelemetry/instrumentation'
-import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch'
-import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-document-load'
-import { Resource } from '@opentelemetry/resources'
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
-
-// 1️⃣ Provider with a service name that shows up in SigNoz
-const provider = new WebTracerProvider({
-  resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: 'react-frontend',   // pick a name you like
-  }),
+// 1. Define a resource for your service
+const resource = new Resource({
+  'service.name': 'webapp-frontend',
 });
 
-// 2️⃣ Exporter that ships traces to SigNoz Cloud
-const otlpExporter = new OTLPTraceExporter({
-  url: 'https://ingest.in.signoz.cloud:4318/v1/traces',
-  headers: { 'api-key': 'e9bfcba0-a5a1-4d45-b2d5-38d332625ac8' },
+// 2. Initialize the provider
+const provider = new WebTracerProvider({ resource });
+
+// 3. Create and configure the exporter to send data to SigNoz Cloud
+const exporter = new OTLPTraceExporter({
+  url: 'https://ingest.in.signoz.cloud:443/v1/traces',
+  headers: {
+    'signoz-access-token': 'e9bfcba0-a5a1-4d45-b2d5-38d332625ac8',
+  },
 });
 
-// 3️⃣ Wire both exporters to the provider
-provider.addSpanProcessor(new SimpleSpanProcessor(otlpExporter));      // to SigNoz
-provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));  // local dev logging
-provider.register();
+// 4. Use a SimpleSpanProcessor to send traces to the exporter
+provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
 
-// 4️⃣ Enable auto‑instrumentations
+// 5. Register the provider to be used by the app
+provider.register({
+  contextManager: new ZoneContextManager(),
+});
+
+// 6. Register the automatic instrumentations
+//    This is the most important change!
 registerInstrumentations({
   instrumentations: [
-    new FetchInstrumentation(),
-    new DocumentLoadInstrumentation(),
+    // getWebAutoInstrumentations bundles all standard web instrumentations
+    getWebAutoInstrumentations({
+      // Configuration for the fetch instrumentation
+      '@opentelemetry/instrumentation-fetch': {
+        // This is crucial for connecting frontend and backend traces
+        propagateTraceHeaderCorsUrls: [
+          'http://localhost:5000', // The URL of your Flask backend
+        ],
+      },
+    }),
   ],
 });
+
+console.log('OpenTelemetry instrumentation for webapp-frontend initialized.');
