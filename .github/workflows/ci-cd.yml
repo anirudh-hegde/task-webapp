@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
 
+  
 env:
   # Environment variables for OpenTelemetry/SigNoz Cloud
   # These will be available to all steps in the job.
