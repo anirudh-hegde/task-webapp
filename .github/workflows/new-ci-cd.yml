@@ -1,11 +1,17 @@
-name: CD-deploy - new
+name: CD - Deploy Full Stack App to EC2
 
 on:
   workflow_dispatch:
+  
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_USER: ${{ secrets.EC2_USER }}
+      SIGNOZ_TOKEN: ${{ secrets.SIGNOZ_TOKEN }}
+      REPO: harshit-jindal02/task-webapp  # adjust if needed
 
     steps:
       - name: Checkout repository
@@ -13,57 +19,75 @@ jobs:
 
       - name: Setup SSH Key
         run: |
+          # Write the private key to a file; ensure newlines are preserved in the secret
           echo "${{ secrets.EC2_SSH_KEY }}" > ec2_key.pem
-          chmod 400 ec2_key.pem
-
-      - name: Run Deployment Script on EC2
+          chmod 600 ec2_key.pem
+      - name: Deploy via SSH using Docker (fully automated)
         run: |
-          ssh -o StrictHostKeyChecking=no -i ec2_key.pem ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+          # Use unquoted heredoc so variables like $EC2_HOST, $REPO expand in the remote shell.
+          ssh -o StrictHostKeyChecking=no -i ec2_key.pem $EC2_USER@$EC2_HOST <<EOF
             set -e
-            echo "=== 1) Ensure prerequisites on EC2 ==="
-            command -v python3 >/dev/null || sudo yum install -y python3
-            command -v pip3   >/dev/null || sudo yum install -y python3-pip
-            command -v node   >/dev/null || \
-              curl -sL https://rpm.nodesource.com/setup_18.x | sudo bash - && \
-              sudo yum install -y nodejs
-            command -v pm2    >/dev/null || sudo npm install -g pm2
-            command -v opentelemetry-bootstrap >/dev/null || \
-              pip3 install opentelemetry-distro && \
-              opentelemetry-bootstrap --action=install
-            command -v serve  >/dev/null || sudo npm install -g serve
-
-            echo "=== 2) Pull latest code ==="
+            echo "=== 1) Detect OS and install Docker if missing ==="
+            # Non-interactive frontend for apt
+            export DEBIAN_FRONTEND=noninteractive
+            # Update package lists
+            sudo apt-get update -y
+            # Install docker if missing
+            if ! command -v docker >/dev/null; then
+              echo "Installing Docker..."
+              sudo apt-get install -y docker.io
+              # Note: on Ubuntu AMI, 'ubuntu' user has passwordless sudo; no need to usermod here for pipeline use
+            else
+              echo "Docker already installed"
+            fi
+            # (Optional) install docker-compose if missing
+            if ! command -v docker-compose >/dev/null; then
+              echo "Installing docker-compose..."
+              sudo apt-get install -y docker-compose
+            fi
+            echo "=== 2) Ensure ~/task-webapp exists and pull/update repo ==="
+            cd ~
+            mkdir -p ~/task-webapp
             cd ~/task-webapp
             if [ ! -d .git ]; then
-              git clone https://github.com/${{ github.repository }} .
+              echo "Cloning repository https://github.com/$REPO ..."
+              git clone -b sam-branch https://github.com/$REPO .
             else
-              git fetch --all
-              git reset --hard origin/main
+              echo "Fetching latest changes for $REPO ..."
+              git fetch origin sam-branch
+              git reset --hard origin/sam-branch
             fi
-
-            echo "=== 3) Deploy Backend (Flask + OTel) ==="
-            cd backend/Flask-ToDo-List
-            pip3 install --upgrade pip
-            pip3 install -r requirements.txt
-            pm2 stop flask-app || true
-            OTEL_RESOURCE_ATTRIBUTES="service.name=flask-app-backend" \
-            OTEL_EXPORTER_OTLP_ENDPOINT="https://ingest.in.signoz.cloud:443" \
-            OTEL_EXPORTER_OTLP_HEADERS="signoz-access-token=${{ secrets.SIGNOZ_TOKEN }}" \
-            OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED="true" \
-              pm2 start opentelemetry-instrument -- \
-                python3 app.py --host=0.0.0.0 --port=5000 \
-                --name flask-app
-
-            echo "=== 4) Deploy Frontend (React) ==="
-            cd ../../frontend/Simple-Todos-In-React-JS
-            npm ci
-            echo "REACT_APP_API_URL=http://${{ secrets.EC2_HOST }}:5000" > .env
-            npm run build
-            pm2 stop react-app || true
-            pm2 start serve -- -s build -l 3000 --name react-app
-
-            echo "=== 5) Persist & Report ==="
-            pm2 save
-            pm2 list
+            echo "=== 3) Build backend Docker image ==="
+            cd ~/task-webapp/backend/Flask-ToDo-List
+            # Build image with tag. Use sudo docker in case user not in docker group.
+            sudo docker build -t task-webapp-backend:latest .
+            echo "=== 4) Build frontend Docker image ==="
+            cd ~/task-webapp/frontend/Simple-Todos-In-React-JS
+            # Build with build-arg for REACT_APP_API_URL. Ensure Dockerfile uses ARG/ENV accordingly.
+            sudo docker build \
+              --build-arg REACT_APP_API_URL="http://$EC2_HOST:5000" \
+              -t task-webapp-frontend:latest .
+            echo "=== 5) Stop & remove old containers if running ==="
+            sudo docker rm -f flask-app-container || true
+            sudo docker rm -f react-app-container || true
+            echo "=== 6) Run backend container ==="
+            sudo docker run -d \
+              --name flask-app-container \
+              -p 5000:5000 \
+              --restart unless-stopped \
+              -e OTEL_RESOURCE_ATTRIBUTES="service.name=flask-app-backend" \
+              -e OTEL_EXPORTER_OTLP_ENDPOINT="https://ingest.in.signoz.cloud:443" \
+              -e OTEL_EXPORTER_OTLP_HEADERS="signoz-access-token=${{ secrets.SIGNOZ_KEY }}" \
+              -e OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED="true" \
+              task-webapp-backend:latest
+            echo "=== 7) Run frontend container ==="
+            sudo docker run -d \
+              --name react-app-container \
+              -p 3000:3000 \
+              --restart unless-stopped \
+              task-webapp-frontend:latest
+            echo "=== 8) Clean up unused images (optional) ==="
+            sudo docker image prune -f
+            echo "=== Deployment completed on EC2. Current containers: ==="
+            sudo docker ps
           EOF
-
